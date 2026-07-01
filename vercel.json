@@ -1,4 +1,12 @@
 {
   "framework": "nextjs",
-  "regions": ["sini"]
+  "regions": ["sin1"],
+  "functions": {
+    "app/api/export/route.js": {
+      "maxDuration": 60
+    },
+    "app/api/post/route.js": {
+      "maxDuration": 30
+    }
+  }
 }

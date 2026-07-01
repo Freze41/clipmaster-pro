@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 250 250 252;
+    --foreground: 15 16 22;
+    --card: 255 255 255;
+    --card-foreground: 15 16 22;
+    --popover: 255 255 255;
+    --popover-foreground: 15 16 22;
+    --primary: 350 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 244 244 248;
+    --secondary-foreground: 35 35 48;
+    --muted: 244 244 248;
+    --muted-foreground: 110 112 128;
+    --accent: 244 244 248;
+    --accent-foreground: 22 22 30;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 229 231 238;
+    --input: 229 231 238;
+    --ring: 350 100% 60%;
+    --radius: 0.9rem;
+  }
+  .dark {
+    --background: 10 10 15;
+    --foreground: 245 245 248;
+    --card: 17 18 26;
+    --card-foreground: 245 245 248;
+    --popover: 17 18 26;
+    --popover-foreground: 245 245 248;
+    --primary: 350 100% 62%;
+    --primary-foreground: 255 255 255;
+    --secondary: 24 25 36;
+    --secondary-foreground: 225 226 234;
+    --muted: 24 25 36;
+    --muted-foreground: 150 152 166;
+    --accent: 24 25 36;
+    --accent-foreground: 240 240 245;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 255 255 255;
+    --border: 34 36 48;
+    --input: 34 36 48;
+    --ring: 350 100% 62%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; font-feature-settings: "rlig" 1, "calt" 1; }
+}
+
+@layer components {
+  .card-soft { @apply bg-card rounded-2xl border shadow-sm; }
+  .pill { @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium; }
+}

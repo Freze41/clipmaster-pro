@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+dist
+coverage
+.env.local
+npm-debug.log
+storage
+*.db
+*.sqlite
+.DS_Store

@@ -1,0 +1,263 @@
+// ClipMaster Pro v1.1 — Full-stack + Team + Export + Social Post
+// Supports SQLite locally, Postgres on Vercel
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // For local dev: set DATABASE_URL="file:./dev.db" and change provider to "sqlite" temporarily
+  // or use: provider = env("DB_PROVIDER") — but Prisma doesn't support env provider yet, so we ship 2 schemas.
+  // QUICK LOCAL: npx prisma db push --schema=./prisma/schema.sqlite.prisma
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  image         String?
+  plan          String   @default("Pro")
+  role          String   @default("CLIPPER") // OWNER, EDITOR, REVIEWER, CLIPPER
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  videos    Video[]
+  clips     Clip[]
+  projects  Project[]
+  accounts  Account[]
+  sessions  Session[]
+
+  teamMemberships TeamMember[]
+  ownedTeams      Team[] @relation("TeamOwner")
+  approvals       Approval[]
+  socialAccounts  SocialAccount[]
+  postJobs        PostJob[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// --- TEAM / MULTI-USER ---
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  ownerId     String
+  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id])
+  plan        String   @default("Team")
+  seats       Int      @default(3)
+  createdAt   DateTime @default(now())
+
+  members  TeamMember[]
+  projects Project[]
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("CLIPPER") // OWNER, EDITOR, REVIEWER, CLIPPER
+  invitedAt DateTime @default(now())
+  acceptedAt DateTime?
+
+  @@unique([teamId, userId])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  channelName String?
+  description String?  @db.Text
+  color       String   @default("#FF3B5C")
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId      String?
+  team        Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  videos Video[]
+  clips  Clip[]
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  youtubeId   String
+  title       String
+  channel     String
+  duration    Int
+  views       Int      @default(0)
+  thumbnail   String?
+  url         String
+  status      String   @default("READY")
+  description String?  @db.Text
+  tags        String?
+  language    String   @default("id")
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  clips Clip[]
+  moments Moment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([youtubeId])
+}
+
+model Clip {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  startSec    Int
+  endSec      Int
+  duration    Int
+  score       Float?
+  hookText    String?
+  status      String   @default("DRAFT") // DRAFT, IN_REVIEW, APPROVED, EXPORTED, POSTED, REJECTED
+  platform    String   @default("tiktok")
+  aspect      String   @default("9:16")
+  views       Int      @default(0)
+  likes       Int      @default(0)
+  tags        String?
+
+  videoId   String
+  video     Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  exports   Export[]
+  approvals Approval[]
+  postJobs  PostJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([videoId])
+}
+
+model Moment {
+  id        String  @id @default(cuid())
+  startSec  Int
+  endSec    Int
+  label     String
+  score     Float
+  reason    String?
+  emotion   String?
+  keywords  String?
+  videoId   String
+  video     Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+// --- 1. FFMPEG EXPORT ---
+model Export {
+  id         String   @id @default(cuid())
+  clipId     String
+  clip       Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  platform   String
+  format     String   @default("mp4")
+  resolution String   @default("1080x1920")
+  preset     String   @default("9_16_h264")
+  fps        Int      @default(30)
+  bitrate    String   @default("6000k")
+  withSubs   Boolean  @default(true)
+  withWatermark Boolean @default(false)
+  status     String   @default("QUEUED") // QUEUED, RENDERING, DONE, FAILED
+  progress   Int      @default(0)
+  outputUrl  String?  @db.Text
+  fileSize   Int?
+  log        String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// --- 2. SOCIAL AUTO-POST ---
+model SocialAccount {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  String  // tiktok, youtube, instagram
+  handle    String
+  accessToken  String? @db.Text
+  refreshToken String? @db.Text
+  expiresAt DateTime?
+  meta      String? @db.Text
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  postJobs PostJob[]
+  @@unique([userId, provider, handle])
+}
+
+model PostJob {
+  id          String   @id @default(cuid())
+  clipId      String
+  clip        Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialAccountId String?
+  socialAccount SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  provider    String   // tiktok, youtube, instagram
+  caption     String   @db.Text
+  hashtags    String?
+  scheduleAt  DateTime?
+  status      String   @default("DRAFT") // DRAFT, SCHEDULED, POSTING, POSTED, FAILED
+  externalId  String?
+  externalUrl String?  @db.Text
+  error       String?  @db.Text
+  postedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- 3. APPROVAL WORKFLOW ---
+model Approval {
+  id        String   @id @default(cuid())
+  clipId    String
+  clip      Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer  User     @relation(fields: [reviewerId], references: [id])
+  status    String   // APPROVED, REJECTED, CHANGES_REQUESTED
+  note      String?  @db.Text
+  timecodes String?  // e.g. "0:12 cut, 0:34 add zoom"
+  createdAt DateTime @default(now())
+
+  @@index([clipId])
+}

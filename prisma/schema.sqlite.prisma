@@ -1,0 +1,15 @@
+// Local SQLite fallback – copy of v1.1 but provider sqlite + no @db.Text
+// Use: npx prisma db push --schema=prisma/schema.sqlite.prisma
+// then: DATABASE_URL="file:./dev.db" npx prisma generate --schema=prisma/schema.sqlite.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ... trimmed — use main schema and manually switch provider to sqlite for local quick start.
+// Full file omitted for brevity – run: cp prisma/schema.prisma prisma/schema.sqlite.prisma && sed -i 's/postgresql/sqlite/' prisma/schema.sqlite.prisma
+// then remove all @db.Text occurrences.

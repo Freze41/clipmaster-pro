@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: clipmaster-postgres
+    environment:
+      POSTGRES_USER: clipmaster
+      POSTGRES_PASSWORD: clipmaster
+      POSTGRES_DB: clipmaster
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clipmaster"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: clipmaster-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+
+  # BullMQ / export worker (optional separate, here bundled in app)
+  # minio for S3-compatible export storage (opsional)
+  minio:
+    image: minio/minio
+    container_name: clipmaster-minio
+    environment:
+      MINIO_ROOT_USER: clipmaster
+      MINIO_ROOT_PASSWORD: clipmaster123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clipmaster-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: "postgresql://clipmaster:clipmaster@postgres:5432/clipmaster"
+      # Prisma needs direct url same
+      DIRECT_URL: "postgresql://clipmaster:clipmaster@postgres:5432/clipmaster"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "clipmaster-docker-super-secret-123"
+      REDIS_URL: "redis://redis:6379"
+      # Social API keys (isi .env kamu)
+      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY:-}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+      # S3 export
+      S3_ENDPOINT: "http://minio:9000"
+      S3_ACCESS_KEY: "clipmaster"
+      S3_SECRET_KEY: "clipmaster123"
+      S3_BUCKET: "clipmaster-renders"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    volumes:
+      # mount renders locally
+      - ./storage/renders:/app/storage/renders
+      - ./storage/uploads:/app/storage/uploads
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
